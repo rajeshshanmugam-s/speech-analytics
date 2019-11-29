@@ -12,6 +12,10 @@ import wave
 from deepspeech import Model, printVersions
 from timeit import default_timer as timer
 
+from model_downloader import ds_model_downloader
+
+from pre_processor import processor, words_corrector, boundary_definer
+
 try:
     from shhlex import quote
 except ImportError:
@@ -66,8 +70,45 @@ def convert_samplerate(audio_path):
     return SAMPLE_RATE, np.frombuffer(output, np.int16)
 
 
-def metadata_to_string(metadata):
-    return ''.join(item.character for item in metadata.items)
+def words_from_metadata(metadata):
+    #Todo: Simplify this
+    word = ""
+    word_list = []
+    word_start_time = 0
+    # Loop through each character
+    for i in range(0, metadata.num_items):
+        item = metadata.items[i]
+        # Append character to word if it's not a space
+        if item.character != " ":
+            word = word + item.character
+        # Word boundary is either a space or the last character in the array
+        if item.character == " " or i == metadata.num_items - 1:
+            word_duration = item.start_time - word_start_time
+
+            if word_duration < 0:
+                word_duration = 0
+
+            each_word = dict()
+            each_word["word"] = word
+            each_word["start_time"] = round(word_start_time, 4)
+            each_word["duration"] = round(word_duration, 4)
+
+            word_list.append(each_word)
+            # Reset
+            word = ""
+            word_start_time = 0
+        else:
+            if len(word) == 1:
+                # Log the start time of the new word
+                word_start_time = item.start_time
+
+    return word_list
+
+def metadata_json_output(metadata):
+    json_result = dict()
+    json_result["words"] = words_from_metadata(metadata)
+    # json_result["start_time"] = metadata.start_time
+    return json_result
 
 
 class VersionAction(argparse.Action):
@@ -87,7 +128,8 @@ if lm and trie:
     lm_load_end = timer() - lm_load_start
 
 
-def transcriber(audio):
+def transcriber(audio, word_tagging):
+    ds_model_downloader()
     fin = wave.open(audio, 'rb')
     fs = fin.getframerate()
     if fs != SAMPLE_RATE:
@@ -95,6 +137,23 @@ def transcriber(audio):
     else:
         audio = np.frombuffer(fin.readframes(fin.getnframes()), np.int16)
 
+    # audio_length = fin.getnframes() * (1/fs)
     fin.close()
 
-    return ds.stt(audio, fs)
+    # inference_start = timer()
+    if word_tagging:
+        return metadata_json_output(ds.sttWithMetadata(audio, fs))
+    else:
+        transcript = ds.stt(audio, fs)
+        return transcript
+
+
+def governor(audio,word_tagging):
+    if not word_tagging:
+        transcript = transcriber(audio, word_tagging)
+        return boundary_definer(transcript)
+    elif word_tagging:
+        transcript = transcriber(audio, word_tagging)
+        return transcript
+
+# print(governor('new_home_stars.wav', False))
