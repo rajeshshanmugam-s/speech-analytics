@@ -1,11 +1,13 @@
 from deepsegment import DeepSegment
-segmenter = DeepSegment('en', tf_serving=True)
+from keras.backend import clear_session
+segmenter = DeepSegment('en')
 from deepcorrect import DeepCorrect
 corrector = DeepCorrect('/Users/rajesh/Documents/speech-analytics/deepconnect_models/deeppunct_params_en',
                         '/Users/rajesh/Documents/speech-analytics/deepconnect_models/deeppunct_checkpoint_wikipedia')
 
 
 def boundary_definer(corpus):
+    clear_session()
     corpus = segmenter.segment(corpus)
     return corpus
 

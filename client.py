@@ -142,7 +142,9 @@ def transcriber(audio, word_tagging):
 
     # inference_start = timer()
     if word_tagging:
-        return metadata_json_output(ds.sttWithMetadata(audio, fs))
+        output = ds.sttWithMetadata(audio, fs)
+        print(output)
+        return metadata_json_output(output)
     else:
         transcript = ds.stt(audio, fs)
         return transcript
